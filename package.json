@@ -1,0 +1,13 @@
+{
+    "name": "helloworld",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "build": "npm install --prefix Back && npm install --prefix Front && npm run build --prefix Front",
+        "start": "npm run start --prefix Back"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": ""
+}
