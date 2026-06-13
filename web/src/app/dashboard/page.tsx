@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { useState, useEffect, useRef } from "react";
 import useAuth from "@/store/userStore";
+import { useSocket } from "@/store/socketStore";
 
 export default function Page() {
     const router = useRouter();
     const { userId } = useAuth();
+    const { socket, onlineUsers } = useSocket();
     const [chats, setChats] = useState<Chat[]>([]);
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -158,6 +160,7 @@ export default function Page() {
         }
     };
     const [newMessageText, setNewMessageText] = useState<string>("");
+
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessageText.trim() || !selectedChatId) return;
@@ -173,6 +176,7 @@ export default function Page() {
                         text: newMessageText,
                         senderId: userId,
                         chatId: selectedChatId,
+                        receiverId: activeRecipientUid, // Pass recipient UID
                     }),
                     headers: {
                         "Content-Type": "application/json",
@@ -200,9 +204,12 @@ export default function Page() {
     const handleSelectChat = async (chatId: string) => {
         setSelectedChatId(chatId);
         try {
-            const res = await fetch(`http://localhost:3002/api/messages/${chatId}`, {
-                credentials: "include",
-            });
+            const res = await fetch(
+                `http://localhost:3002/api/messages/${chatId}`,
+                {
+                    credentials: "include",
+                },
+            );
             const data = await res.json();
             setMessage(data.messages || []);
         } catch (error) {
@@ -213,6 +220,19 @@ export default function Page() {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
+
+    useEffect(() => {
+        if (!socket) return;
+        socket.on("newMessage", (newMessage) => {
+            // Only append to screen state if it belongs to the active active chat
+            if (newMessage.chatId === selectedChatId) {
+                setMessage((prev) => [...prev, newMessage]);
+            }
+        });
+        return () => {
+            socket.off("newMessage");
+        };
+    }, [socket, selectedChatId]);
 
     return (
         <div className="relative min-h-screen bg-abyss flex flex-col font-body text-parchment">
@@ -410,6 +430,8 @@ export default function Page() {
                                         chat.senderId === userId
                                             ? chat.receiverId
                                             : chat.senderId;
+                                    const isOnline =
+                                        onlineUsers.includes(otherUser);
                                     return (
                                         <div
                                             key={chat.id}
@@ -434,8 +456,12 @@ export default function Page() {
                                                         {otherUser}
                                                     </span>
                                                     <span className="text-[9px] font-mono text-ash uppercase tracking-wide mt-0.5 flex items-center gap-1.5">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-ember animate-candle-breathe" />
-                                                        Connected
+                                                        <span
+                                                            className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-green-500 animate-pulse" : "bg-ember"}`}
+                                                        />
+                                                        {isOnline
+                                                            ? `Connected`
+                                                            : `Not connected`}
                                                     </span>
                                                 </div>
                                             </div>
@@ -469,7 +495,7 @@ export default function Page() {
                 </section>
 
                 {/* Right Panel: The Counter Workspace */}
-                <section className="flex-1 flex flex-col glass-panel rounded-2xl overflow-hidden min-h-[500px]">
+                <section className="flex-1 flex flex-col glass-panel rounded-2xl overflow-hidden min-h-125">
                     {selectedChatId ? (
                         <div className="flex flex-1 flex-col h-full">
                             {/* Thread Header */}
