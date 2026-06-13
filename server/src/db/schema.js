@@ -17,6 +17,7 @@ export const chats = pgTable("chats", {
     receiverId: varchar("receiver_id", { length: 128 })
         .notNull()
         .references(() => users.firebaseUid, { onDelete: "cascade" }),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
 });
 export const messages = pgTable("messages", {

@@ -17,30 +17,39 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const { userId } = useAuth(); // Holds current logged in Firebase UID
 
     useEffect(() => {
+        let active = true;
+        let socketConn: Socket | null = null;
+
         if (userId) {
             // Establish socket connection targeting the backend server
-            const socketConn = io("http://localhost:3002", {
+            socketConn = io("http://localhost:3002", {
                 query: { userId },
                 withCredentials: true,
             });
 
-            setSocket(socketConn);
+            // Set state asynchronously to avoid synchronous cascading renders warning
+            setTimeout(() => {
+                if (active) {
+                    setSocket(socketConn);
+                }
+            }, 0);
 
             // Listen for active users mapping from server
             socketConn.on("getOnlineUsers", (users: string[]) => {
-                setOnlineUsers(users);
+                if (active) {
+                    setOnlineUsers(users);
+                }
             });
-
-            // Disconnect socket connection on unmount
-            return () => {
-                socketConn.disconnect();
-            };
-        } else {
-            if (socket) {
-                socket.disconnect();
-                setSocket(null);
-            }
         }
+
+        // Disconnect socket connection on unmount or userId change
+        return () => {
+            active = false;
+            if (socketConn) {
+                socketConn.disconnect();
+            }
+            setSocket(null);
+        };
     }, [userId]);
 
     return (
