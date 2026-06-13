@@ -1,104 +1,121 @@
 import { useRef, useState } from "react";
-import { useChatStore } from "../store/usChatStore";
-import { Image, Send, X } from "lucide-react";
-import toast from "react-hot-toast";
+import { useAppStore } from "../store/useAppStore";
+import { Send, X, Paperclip } from "lucide-react";
 
-const MessageInput = () => {
-    const [text, setText] = useState("");
-    const [imagePreview, setImagePreview] = useState(false);
-    const fileInputRef = useRef(null);
-    const { sendMessage } = useChatStore();
+export default function MessageInput({ disabled = false }) {
+  const [text, setText] = useState("");
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
+  const { sendMessage, isSending } = useAppStore();
 
-    const handleImageChange = (e) => {
-        const file = e.target.files[0];
-        if (!file.type.startsWith("image/")) {
-            toast.error("Please select an image file");
-            return;
-        }
-        const reader = new FileReader();
-        reader.onload = () => {
-            setImagePreview(reader.result);
-        };
-        reader.readAsDataURL(file);
-    };
-    const removeImage = () => {
-        setImagePreview(null);
-        if (fileInputRef.current) fileInputRef.current = "";
-    };
-    const handleSendMessage = async (e) => {
-        e.preventDefault();
-        if (!text.trim() && !imagePreview) return;
-        try {
-            await sendMessage({ text: text.trim(), image: imagePreview });
+  const isDisabled = disabled || isSending;
+  const hasContent = text.trim() || imagePreview;
 
-            setText("");
-            setImagePreview(null);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-        } catch (err) {
-            console.log("Failed to send message", err);
-        }
-    };
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file || !file.type.startsWith("image/")) return;
 
-    return (
-        <div className="p-4 w-full">
-            {imagePreview && (
-                <div className="mb-3 flex items-center gap-2">
-                    <div className="relative">
-                        <img
-                            src={imagePreview}
-                            alt="Preview"
-                            className="w-20 h-20 object-cover rounded-lg border border-zinc-700"
-                        />
-                        <button
-                            onClick={removeImage}
-                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-base-300
-              flex items-center justify-center"
-                            type="button"
-                        >
-                            <X className="size-3" />
-                        </button>
-                    </div>
-                </div>
-            )}
-            <form
-                onSubmit={handleSendMessage}
-                className="flex items-center gap-2"
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const removeImage = () => {
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!hasContent || isDisabled) return;
+
+    await sendMessage({ text: text.trim(), image: imagePreview });
+    setText("");
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    textareaRef.current?.focus();
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="p-4 w-full">
+      {imagePreview && (
+        <div className="mb-3 flex items-center gap-2 animate-fade-in">
+          <div className="relative">
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="w-20 h-20 object-cover rounded-lg border border-ash/20"
+            />
+            <button
+              type="button"
+              onClick={removeImage}
+              className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-soot border border-ash/20 flex items-center justify-center hover:bg-ember/20 hover:border-ember transition-all"
+              aria-label="Remove image"
             >
-                <div className="flex-1 flex gap-2">
-                    <input
-                        type="text"
-                        className="w-full input input-bordered rounded-lg input-sm sm:input-md"
-                        placeholder="Type a message..."
-                        value={text}
-                        onChange={(e) => setText(e.target.value)}
-                    />
-                    <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        ref={fileInputRef}
-                        onChange={handleImageChange}
-                    />
-                    <button
-                        type="button"
-                        className={`hidden sm:flex btn btn-circle ${
-                            imagePreview ? "text-emerald-500" : "text-zinc-400"
-                        }`}
-                        onClick={() => fileInputRef.current?.click()}
-                    >
-                        <Image size={20} />
-                    </button>
-                </div>
-                <button
-                    type="submit"
-                    className="btn btn-sm btn-circle"
-                    disabled={!text.trim() && !imagePreview}
-                >
-                    <Send size={22} />
-                </button>
-            </form>
+              <X className="size-3.5 text-ash hover:text-ember" />
+            </button>
+          </div>
+          <span className="text-xs text-ash font-mono">Attachment ready</span>
         </div>
-    );
-};
+      )}
 
-export default MessageInput;
+      <div className="flex items-end gap-2">
+        <div className="flex-1 flex items-end gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isDisabled}
+            className={`btn-icon p-2 shrink-0 transition-colors ${
+              isDisabled
+                ? "opacity-40 cursor-not-allowed"
+                : "text-ash hover:text-ember"
+            }`}
+            aria-label="Attach image"
+          >
+            <Paperclip className="w-5 h-5" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageChange}
+              disabled={isDisabled}
+              aria-hidden="true"
+            />
+          </button>
+
+          <div className="flex-1 relative">
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isDisabled}
+              placeholder="Write a message..."
+              className={`input-field resize-none min-h-[44px] max-h-40 pr-12 ${isDisabled ? "opacity-60" : ""}`}
+              rows={1}
+              aria-label="Message"
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={!hasContent || isDisabled}
+          className={`btn-primary shrink-0 mb-1 ${!hasContent || isDisabled ? "opacity-40 cursor-not-allowed" : ""}`}
+          aria-label="Send message"
+        >
+          <Send size={20} />
+        </button>
+      </div>
+    </form>
+  );
+}

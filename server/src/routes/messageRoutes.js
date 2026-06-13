@@ -8,11 +8,11 @@ const router = Router();
 
 router.post("/send-message", verifyAuth, async (req, res) => {
     try {
-        const { senderId, receiverId, text, image } = req.body;
+        const { chatId, senderId, text, image } = req.body;
 
         const message = await db.insert(messages).values({
+            chatId,
             senderId,
-            receiverId,
             text,
             image,
             createdAt: new Date(),

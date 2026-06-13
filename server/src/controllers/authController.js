@@ -21,6 +21,7 @@ export const syncUser = async (req, res) => {
                 secure: process.env.NODE_ENV === "production",
                 maxAge: 1000 * 60 * 60 * 24 * 7,
             });
+            console.log(existingUser[0]);
             return res.json({
                 message: "Login successful",
                 user: existingUser[0],
@@ -43,6 +44,7 @@ export const syncUser = async (req, res) => {
             maxAge: 1000 * 60 * 60 * 24 * 7,
         });
         user[0].newuser = true;
+        console.log(user[0]);
         return res.json({ message: "Login successful", user: user[0] });
     } catch (error) {
         console.log(error);
@@ -65,5 +67,17 @@ export const logout = (req, res) => {
     } catch (err) {
         console.log(err);
         return res.status(500).json({ message: "Error logging out" });
+    }
+};
+export const getMe = async (req, res) => {
+    const userId = req.user.uid;
+    try {
+        const user = await db
+            .select()
+            .from(users)
+            .where(eq(users.firebaseUid, userId));
+        return res.json({ user: user[0] });
+    } catch (error) {
+        return res.status(500).json({ message: "Error getting user" });
     }
 };

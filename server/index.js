@@ -12,8 +12,6 @@ import chatRoutes from "./src/routes/chatRoutes.js";
 dotenv.config();
 
 const app = express();
-app.use(express.json());
-app.use(cookieParser());
 
 app.use(
     cors({
@@ -21,6 +19,9 @@ app.use(
         credentials: true,
     }),
 );
+
+app.use(express.json());
+app.use(cookieParser());
 
 app.get("/health", (req, res) => {
     res.send("Hello World");
