@@ -8,6 +8,11 @@ export const syncUser = async (req, res) => {
         const decoded = await admin.auth().verifyIdToken(token);
 
         const firebaseUid = decoded.uid;
+
+        // Create a Firebase Session Cookie
+        const expiresIn = 1000 * 60 * 60 * 24 * 7; // 7 days
+        const sessionCookie = await admin.auth().createSessionCookie(token, { expiresIn });
+
         const existingUser = await db
             .select()
             .from(users)
@@ -16,10 +21,10 @@ export const syncUser = async (req, res) => {
             console.log("User already exists");
             existingUser[0].newuser = false;
             // console.log(existingUser);
-            res.cookie("auth_token", token, {
+            res.cookie("auth_token", sessionCookie, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
-                maxAge: 1000 * 60 * 60 * 24 * 7,
+                maxAge: expiresIn,
             });
             console.log(existingUser[0]);
             return res.json({
@@ -38,10 +43,10 @@ export const syncUser = async (req, res) => {
             })
             .returning();
         console.log("login successful");
-        res.cookie("auth_token", token, {
+        res.cookie("auth_token", sessionCookie, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            maxAge: 1000 * 60 * 60 * 24 * 7,
+            maxAge: expiresIn,
         });
         user[0].newuser = true;
         console.log(user[0]);

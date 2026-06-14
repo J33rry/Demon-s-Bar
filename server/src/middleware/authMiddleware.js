@@ -18,14 +18,20 @@ export const loginAuth = async (req, res, next) => {
 export const verifyAuth = async (req, res, next) => {
     try {
         const token = req.cookies.auth_token;
-        // console.log(token);
+        if (!token) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
 
-        const decoded = await admin.auth().verifyIdToken(token);
+        const decoded = await admin.auth().verifySessionCookie(token, true);
 
         req.user = decoded;
-        // console.log(decoded);
         next();
-    } catch {
+    } catch (error) {
+        console.error("Session verification failed:", error);
+        res.clearCookie("auth_token", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+        });
         return res.status(401).json({ message: "Unauthorized" });
     }
 };

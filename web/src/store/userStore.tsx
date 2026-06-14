@@ -13,6 +13,7 @@ interface ContextType {
     setUser: (user: string | null) => void;
     userId: string | null;
     setUserId: (userId: string | null) => void;
+    loading: boolean;
 }
 
 const userContext = createContext<ContextType | null>(null);
@@ -20,6 +21,7 @@ const userContext = createContext<ContextType | null>(null);
 export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
+    const [loading, setLoading] = useState<boolean>(true);
 
     useEffect(() => {
         async function getMe() {
@@ -41,13 +43,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 console.error("Error fetching user session:", error);
                 setUser(null);
                 setUserId(null);
+            } finally {
+                setLoading(false);
             }
         }
         getMe();
     }, []);
 
     return (
-        <userContext.Provider value={{ user, setUser, userId, setUserId }}>
+        <userContext.Provider value={{ user, setUser, userId, setUserId, loading }}>
             {children}
         </userContext.Provider>
     );

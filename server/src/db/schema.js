@@ -30,6 +30,8 @@ export const messages = pgTable("messages", {
         .references(() => users.firebaseUid, { onDelete: "cascade" }),
     text: varchar("text", { length: 255 }),
     image: varchar("image", { length: 255 }),
+    replyToId: uuid("reply_to_id")
+        .references(() => messages.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -9,13 +9,19 @@ import { useSocket } from "@/store/socketStore";
 
 export default function Page() {
     const router = useRouter();
-    const { userId } = useAuth();
+    const { userId, loading, setUser, setUserId } = useAuth();
     const { socket, onlineUsers } = useSocket();
     const [chats, setChats] = useState<Chat[]>([]);
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [messages, setMessage] = useState<Message[]>([]);
     const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+
+    // States for message replies and image sending
+    const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+    const [selectedImage, setSelectedImage] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     interface Chat {
         id: string;
@@ -30,7 +36,24 @@ export default function Page() {
         chatId: string;
         text: string;
         image: string;
+        replyToId?: string | null;
     }
+
+    const convertFileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = (err) => reject(err);
+        });
+    };
+
+    // Redirect to login if user session check is done and no user exists
+    useEffect(() => {
+        if (!loading && !userId) {
+            router.replace("/login");
+        }
+    }, [userId, loading, router]);
 
     const handleLogout = async () => {
         try {
@@ -39,11 +62,15 @@ export default function Page() {
                 credentials: "include",
             });
             await signOut(auth);
+            setUser(null);
+            setUserId(null);
             router.replace("/login");
         } catch (error) {
             console.error(error);
         }
     };
+
+
 
     const getChats = async () => {
         try {
@@ -167,10 +194,15 @@ export default function Page() {
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMessageText.trim() || !selectedChatId) return;
+        if ((!newMessageText.trim() && !selectedImage) || !selectedChatId) return;
 
         try {
             console.log("sending msg");
+            let base64Image = "";
+            if (selectedImage) {
+                base64Image = await convertFileToBase64(selectedImage);
+            }
+
             const res = await fetch(
                 "http://localhost:3002/api/messages/send-message",
                 {
@@ -181,6 +213,8 @@ export default function Page() {
                         senderId: userId,
                         chatId: selectedChatId,
                         receiverId: activeRecipientUid, // Pass recipient UID
+                        image: base64Image,
+                        replyToId: replyingTo?.id || null,
                     }),
                     headers: {
                         "Content-Type": "application/json",
@@ -191,6 +225,9 @@ export default function Page() {
             if (data.message) {
                 setMessage((prev) => [...prev, data.message]);
                 setNewMessageText("");
+                setReplyingTo(null);
+                setSelectedImage(null);
+                setImagePreview(null);
             }
         } catch (err) {
             console.log(err);
@@ -308,6 +345,47 @@ export default function Page() {
             socket.off("chatDeleted", handleChatDeleted);
         };
     }, [socket, selectedChatId, userId]);
+
+    if (loading) {
+        return (
+            <div className="relative min-h-screen bg-abyss flex flex-col items-center justify-center font-body text-parchment">
+                <div className="absolute inset-0 pointer-events-none z-0">
+                    <div className="absolute top-10 left-10 w-96 h-96 rounded-full bg-ember/3 blur-[120px] animate-ember-float" />
+                    <div
+                        className="absolute bottom-10 right-10 w-80 h-80 rounded-full bg-ember/5 blur-[100px] animate-ember-float"
+                        style={{ animationDelay: "-3s" }}
+                    />
+                </div>
+                <div className="relative z-10 text-center space-y-4">
+                    <svg
+                        className="w-16 h-20 mx-auto drop-shadow-[0_0_8px_#C84B31] animate-candle-breathe"
+                        viewBox="0 0 100 120"
+                        fill="none"
+                    >
+                        <path
+                            d="M50 15C50 15 35 45 35 60C35 72.5 41.7 80 50 80C58.3 80 65 72.5 65 60C65 45 50 15 50 15Z"
+                            className="animate-flicker fill-ember origin-bottom"
+                        />
+                        <rect
+                            x="44"
+                            y="80"
+                            width="12"
+                            height="25"
+                            rx="1"
+                            fill="#eee5da"
+                            opacity="0.8"
+                        />
+                    </svg>
+                    <h2 className="font-display text-lg tracking-widest text-parchment text-glow uppercase animate-pulse">
+                        Entering the Bar...
+                    </h2>
+                    <p className="text-[10px] font-mono tracking-widest text-ash uppercase">
+                        Establishing connection
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="relative min-h-screen bg-abyss flex flex-col font-body text-parchment">
@@ -672,19 +750,48 @@ export default function Page() {
                             <div className="flex-1 overflow-y-auto p-4 space-y-3">
                                 {messages.map((msg) => {
                                     const isMe = msg.senderId === userId;
+                                    const repliedMsg = msg.replyToId
+                                        ? messages.find((m) => m.id === msg.replyToId)
+                                        : null;
                                     return (
                                         <div
                                             key={msg.id}
-                                            className={`flex ${isMe ? "justify-end" : "justify-start"}`}
+                                            className={`flex ${isMe ? "justify-end" : "justify-start"} group relative mb-1`}
                                         >
-                                            <div
-                                                className={`max-w-xs px-4 py-2.5 rounded-2xl font-mono text-xs ${
-                                                    isMe
-                                                        ? "bg-ember text-white rounded-br-none"
-                                                        : "bg-soot border border-ash/10 text-parchment rounded-bl-none"
-                                                }`}
-                                            >
-                                                <p>{msg.text}</p>
+                                            <div className={`flex items-center gap-2 max-w-[75%] ${isMe ? "flex-row" : "flex-row-reverse"}`}>
+                                                <button
+                                                    onClick={() => setReplyingTo(msg)}
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-ash hover:text-ember cursor-pointer text-[10px] shrink-0"
+                                                    title="Reply"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                                    </svg>
+                                                </button>
+                                                
+                                                <div
+                                                    className={`px-4 py-2.5 rounded-2xl font-mono text-xs flex flex-col ${
+                                                        isMe
+                                                            ? "bg-ember text-white rounded-br-none"
+                                                            : "bg-soot border border-ash/10 text-parchment rounded-bl-none"
+                                                    }`}
+                                                >
+                                                    {repliedMsg && (
+                                                        <div className="mb-1.5 p-2 rounded bg-black/15 border-l-2 border-ash/30 text-[10px] text-ash/85 truncate max-w-full">
+                                                            <span className="font-semibold text-ember">
+                                                                {repliedMsg.senderId === userId ? "You" : "Patron"}
+                                                            </span>: {repliedMsg.text || "[Image]"}
+                                                        </div>
+                                                    )}
+                                                    {msg.image && (
+                                                        <img
+                                                            src={msg.image}
+                                                            alt="Chat attachment"
+                                                            className="max-w-full rounded-lg mb-1.5 border border-ash/5 object-cover max-h-48"
+                                                        />
+                                                    )}
+                                                    {msg.text && <p className="break-all whitespace-pre-wrap">{msg.text}</p>}
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -692,11 +799,71 @@ export default function Page() {
                                 <div ref={messagesEndRef} />
                             </div>
 
+                            {/* Reply preview bar */}
+                            {replyingTo && (
+                                <div className="flex items-center justify-between px-4 py-2 bg-soot/50 border-t border-ash/10 text-[10px] font-mono text-ash animate-fade-in shrink-0">
+                                    <div className="truncate">
+                                        Replying to <span className="text-ember font-semibold">{replyingTo.senderId === userId ? "You" : "Patron"}</span>: {replyingTo.text || "[Image]"}
+                                    </div>
+                                    <button
+                                        onClick={() => setReplyingTo(null)}
+                                        className="text-ash hover:text-ember cursor-pointer font-bold text-xs px-1"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Image upload preview */}
+                            {imagePreview && (
+                                <div className="relative p-3 bg-soot/40 border-t border-ash/10 flex items-center gap-3 shrink-0 animate-fade-in">
+                                    <div className="relative">
+                                        <img src={imagePreview} className="w-16 h-16 rounded-lg object-cover border border-ash/10" alt="Preview" />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedImage(null);
+                                                setImagePreview(null);
+                                            }}
+                                            className="absolute -top-1.5 -right-1.5 bg-ember hover:bg-ember/90 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold cursor-pointer"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                    <span className="text-[10px] font-mono text-ash">{selectedImage?.name}</span>
+                                </div>
+                            )}
+
                             {/* Message input bar */}
                             <form
                                 onSubmit={handleSendMessage}
-                                className="p-4 bg-soot/35 border-t border-ash/10 flex gap-2"
+                                className="p-4 bg-soot/35 border-t border-ash/10 flex gap-2 items-center"
                             >
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            setSelectedImage(file);
+                                            setImagePreview(URL.createObjectURL(file));
+                                        }
+                                    }}
+                                    accept="image/*"
+                                    className="hidden"
+                                />
+                                
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="p-2.5 text-ash hover:text-ember bg-abyss/60 border border-ash/10 hover:border-ember/35 rounded-xl transition-all duration-300 cursor-pointer shrink-0"
+                                    title="Attach Image"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </button>
+
                                 <input
                                     type="text"
                                     value={newMessageText}
@@ -708,7 +875,7 @@ export default function Page() {
                                 />
                                 <button
                                     type="submit"
-                                    className="px-4 bg-ember hover:bg-ember/90 text-white font-mono text-xs uppercase rounded-xl transition-colors"
+                                    className="px-4 py-2.5 bg-ember hover:bg-ember/90 text-white font-mono text-xs uppercase rounded-xl transition-all duration-300 cursor-pointer shadow-md"
                                 >
                                     Send
                                 </button>
