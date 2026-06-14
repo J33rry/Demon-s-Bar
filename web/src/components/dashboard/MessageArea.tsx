@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef } from "react";
 import MessageAreaSkeleton from "@/components/skeletons/MessageAreaSkeleton";
-import Image from "next/image";
 
 interface Message {
     id: string;
@@ -129,7 +128,8 @@ export default function MessageArea({
                                                     </div>
                                                 )}
                                                 {msg.image && (
-                                                    <Image
+                                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                                    <img
                                                         src={msg.image}
                                                         alt="Chat attachment"
                                                         className="max-w-full rounded-lg mb-1.5 border border-ash/5 object-cover max-h-48"
@@ -174,7 +174,8 @@ export default function MessageArea({
                     {imagePreview && (
                         <div className="relative p-3 bg-soot/40 border-t border-ash/10 flex items-center gap-3 shrink-0 animate-fade-in">
                             <div className="relative">
-                                <Image
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
                                     src={imagePreview}
                                     className="w-16 h-16 rounded-lg object-cover border border-ash/10"
                                     alt="Preview"

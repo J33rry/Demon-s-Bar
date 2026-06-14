@@ -102,9 +102,20 @@ export default function LoginPage() {
                     },
                 );
             }
+            let formattedPhone = phone.trim().replace(/[\s\-\(\)]/g, "");
+            if (!formattedPhone.startsWith("+")) {
+                if (formattedPhone.length === 10) {
+                    formattedPhone = "+91" + formattedPhone;
+                } else if (formattedPhone.startsWith("91") && formattedPhone.length === 12) {
+                    formattedPhone = "+" + formattedPhone;
+                } else {
+                    formattedPhone = "+91" + formattedPhone;
+                }
+            }
+
             const confirmationResult = await signInWithPhoneNumber(
                 auth,
-                phone,
+                formattedPhone,
                 win.recaptchaVerifier,
             );
 
