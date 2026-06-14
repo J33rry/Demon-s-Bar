@@ -1,5 +1,7 @@
 "use client";
 
+import LedgerSkeleton from "@/components/skeletons/LedgerSkeleton";
+
 interface Chat {
     id: string;
     senderId: string;
@@ -17,6 +19,7 @@ interface LedgerProps {
     onDeleteChat: (chatId: string) => void;
     onAcceptChat: (chatId: string) => void;
     onSyncChats: () => void;
+    loading: boolean;
 }
 
 export default function Ledger({
@@ -28,6 +31,7 @@ export default function Ledger({
     onDeleteChat,
     onAcceptChat,
     onSyncChats,
+    loading,
 }: LedgerProps) {
     const incomingRequests = chats.filter(
         (c) => c.status === "pending" && c.receiverId === userId
@@ -66,7 +70,9 @@ export default function Ledger({
 
             {/* Connection list */}
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-                {chats.length === 0 ? (
+                {loading ? (
+                    <LedgerSkeleton />
+                ) : chats.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center py-10 opacity-40">
                         <svg
                             className="w-10 h-10 mb-3 text-ash"

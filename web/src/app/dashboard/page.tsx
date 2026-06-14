@@ -38,6 +38,8 @@ export default function Page() {
     const [error, setError] = useState<string | null>(null);
     const [messages, setMessage] = useState<Message[]>([]);
     const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+    const [chatsLoading, setChatsLoading] = useState(true);
+    const [messagesLoading, setMessagesLoading] = useState(false);
 
     // States for message replies and image sending
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -69,6 +71,7 @@ export default function Page() {
 
     const getChats = async () => {
         try {
+            setChatsLoading(true);
             setError(null);
             const res = await fetch("http://localhost:3002/api/chats/", {
                 method: "GET",
@@ -79,6 +82,8 @@ export default function Page() {
         } catch (error) {
             console.error(error);
             setError("Failed to fetch active ledger entries.");
+        } finally {
+            setChatsLoading(false);
         }
     };
 
@@ -159,24 +164,42 @@ export default function Page() {
 
     // Load ledger on mount
     useEffect(() => {
+        let active = true;
         const fetchChats = async () => {
             try {
-                setError(null);
                 const res = await fetch("http://localhost:3002/api/chats/", {
                     method: "GET",
                     credentials: "include",
                 });
                 const data = await res.json();
-                setChats(data.chats || []);
+                if (active) {
+                    setChats(data.chats || []);
+                }
             } catch (error) {
                 console.error(error);
-                setError("Failed to fetch active ledger entries.");
+                if (active) {
+                    setError("Failed to fetch active ledger entries.");
+                }
+            } finally {
+                if (active) {
+                    setChatsLoading(false);
+                }
             }
         };
         if (userId) {
             fetchChats();
+        } else if (!loading) {
+            // Avoid calling state updater directly/synchronously in effect render loop
+            setTimeout(() => {
+                if (active) {
+                    setChatsLoading(false);
+                }
+            }, 0);
         }
-    }, [userId]);
+        return () => {
+            active = false;
+        };
+    }, [userId, loading]);
 
     const handleCopyMark = () => {
         if (userId) {
@@ -257,6 +280,7 @@ export default function Page() {
             return;
         }
         try {
+            setMessagesLoading(true);
             const res = await fetch(
                 `http://localhost:3002/api/messages/${chatId}`,
                 {
@@ -267,6 +291,8 @@ export default function Page() {
             setMessage(data.messages || []);
         } catch (error) {
             console.error("Error fetching messages:", error);
+        } finally {
+            setMessagesLoading(false);
         }
     };
 
@@ -328,46 +354,6 @@ export default function Page() {
         };
     }, [socket, selectedChatId, userId]);
 
-    if (loading) {
-        return (
-            <div className="relative min-h-screen bg-abyss flex flex-col items-center justify-center font-body text-parchment">
-                <div className="absolute inset-0 pointer-events-none z-0">
-                    <div className="absolute top-10 left-10 w-96 h-96 rounded-full bg-ember/3 blur-[120px] animate-ember-float" />
-                    <div
-                        className="absolute bottom-10 right-10 w-80 h-80 rounded-full bg-ember/5 blur-[100px] animate-ember-float"
-                        style={{ animationDelay: "-3s" }}
-                    />
-                </div>
-                <div className="relative z-10 text-center space-y-4">
-                    <svg
-                        className="w-16 h-20 mx-auto drop-shadow-[0_0_8px_#C84B31] animate-candle-breathe"
-                        viewBox="0 0 100 120"
-                        fill="none"
-                    >
-                        <path
-                            d="M50 15C50 15 35 45 35 60C35 72.5 41.7 80 50 80C58.3 80 65 72.5 65 60C65 45 50 15 50 15Z"
-                            className="animate-flicker fill-ember origin-bottom"
-                        />
-                        <rect
-                            x="44"
-                            y="80"
-                            width="12"
-                            height="25"
-                            rx="1"
-                            fill="#eee5da"
-                            opacity="0.8"
-                        />
-                    </svg>
-                    <h2 className="font-display text-lg tracking-widest text-parchment text-glow uppercase animate-pulse">
-                        Entering the Bar...
-                    </h2>
-                    <p className="text-[10px] font-mono tracking-widest text-ash uppercase">
-                        Establishing connection
-                    </p>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="relative min-h-screen bg-abyss flex flex-col font-body text-parchment">
@@ -401,6 +387,7 @@ export default function Page() {
                         onDeleteChat={handleDelete}
                         onAcceptChat={handleAccept}
                         onSyncChats={getChats}
+                        loading={loading || chatsLoading}
                     />
                 </section>
 
@@ -419,6 +406,7 @@ export default function Page() {
                     newMessageText={newMessageText}
                     setNewMessageText={setNewMessageText}
                     onSendMessage={handleSendMessage}
+                    messagesLoading={messagesLoading}
                 />
             </main>
         </div>
